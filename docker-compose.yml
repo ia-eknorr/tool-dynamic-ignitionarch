@@ -1,0 +1,262 @@
+# Common configuration properties for all Ignition services
+x-ignition-common: &ignition-common
+  image: inductiveautomation/ignition:8.1.44
+  depends_on:
+    db:
+      condition: service_healthy
+  networks:
+    - ignition_network
+    - proxy
+
+# Common environment variables for standard edition
+x-standard-env: &standard-env
+  IGNITION_EDITION: standard
+  GATEWAY_MODULES_ENABLED: ${STD_MODULES:-perspective,tag-historian,web-developer,opc-ua,reporting,alarm-notification,sql-bridge,vision,voice-notification}
+
+services:
+  # Database service - shared across all configurations (PostgreSQL)
+  db:
+    image: postgres:latest
+    container_name: ignition-db
+    volumes:
+      - ./db-init:/docker-entrypoint-initdb.d
+      - db-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-ignition}
+      POSTGRES_USER: ${DB_USER:-ignition}
+      POSTGRES_DB: ${DB_NAME:-ignition}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-ignition}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      ignition_network:
+        aliases:
+          - ignition-db
+    profiles:
+      - standard
+      - scaleout
+      - hubspoke
+
+  # Standard standalone gateway configuration
+  gateway:
+    <<: *ignition-common
+    container_name: ignition-gateway
+    environment:
+      <<: *standard-env
+      TZ: ${TZ:-UTC}
+      ACCEPT_IGNITION_EULA: "Y"
+      GATEWAY_ADMIN_USERNAME: ${GATEWAY_ADMIN_USERNAME:-admin}
+      GATEWAY_ADMIN_PASSWORD: ${GATEWAY_ADMIN_PASSWORD:-admin}
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.ignition-gateway.rule=Host(`${GATEWAY_NAME:-ignition-gateway}.localtest.me`)
+    command: >
+      -n ${GATEWAY_NAME:-ignition-gateway}
+      -h 80
+      -s 443
+      -a ${GATEWAY_NAME:-ignition-gateway}.localtest.me
+      --
+      -Dignition.projects.scanFrequency=10
+    profiles:
+      - standard
+
+  # Frontend gateway for scale-out architecture
+  frontend:
+    <<: *ignition-common
+    container_name: ignition-frontend
+    environment:
+      <<: *standard-env
+      TZ: ${TZ:-UTC}
+      ACCEPT_IGNITION_EULA: "Y"
+      GATEWAY_ADMIN_USERNAME: ${GATEWAY_ADMIN_USERNAME:-admin}
+      GATEWAY_ADMIN_PASSWORD: ${GATEWAY_ADMIN_PASSWORD:-admin}
+      # Gateway Network configuration for backend
+      GATEWAY_NETWORK_0_HOST: ignition-backend
+      GATEWAY_NETWORK_0_PORT: 8088
+      GATEWAY_NETWORK_0_ENABLESSL: "false"
+      GATEWAY_NETWORK_0_DESCRIPTION: "Backend Connection"
+      GATEWAY_NETWORK_ALLOWINCOMING: "false"
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.ignition-frontend.rule=Host(`${FRONTEND_NAME:-ignition-frontend}.localtest.me`)
+    command: >
+      -n ${FRONTEND_NAME:-ignition-frontend}
+      -h 80
+      -s 443
+      -a ${FRONTEND_NAME:-ignition-frontend}.localtest.me
+      --
+      -Dignition.projects.scanFrequency=10
+    profiles:
+      - scaleout
+
+  # Backend gateway for scale-out architecture
+  backend:
+    <<: *ignition-common
+    container_name: ignition-backend
+    environment:
+      <<: *standard-env
+      TZ: ${TZ:-UTC}
+      ACCEPT_IGNITION_EULA: "Y"
+      GATEWAY_ADMIN_USERNAME: ${GATEWAY_ADMIN_USERNAME:-admin}
+      GATEWAY_ADMIN_PASSWORD: ${GATEWAY_ADMIN_PASSWORD:-admin}
+      # Gateway Network Server configuration
+      GATEWAY_NETWORK_REQUIRESSL: "false"
+      GATEWAY_NETWORK_SECURITYPOLICY: "Unrestricted"
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.ignition-backend.rule=Host(`${BACKEND_NAME:-ignition-backend}.localtest.me`)
+    command: >
+      -n ${BACKEND_NAME:-ignition-backend}
+      -h 80
+      -s 443
+      -a ${BACKEND_NAME:-ignition-backend}.localtest.me
+      --
+      -Dignition.projects.scanFrequency=10
+    profiles:
+      - scaleout
+
+  # Hub gateway for hub-and-spoke architecture
+  hub:
+    <<: *ignition-common
+    container_name: ignition-hub
+    environment:
+      <<: *standard-env
+      TZ: ${TZ:-UTC}
+      ACCEPT_IGNITION_EULA: "Y"
+      GATEWAY_ADMIN_USERNAME: ${GATEWAY_ADMIN_USERNAME:-admin}
+      GATEWAY_ADMIN_PASSWORD: ${GATEWAY_ADMIN_PASSWORD:-admin}
+      # Gateway Network Server configuration for spokes
+      GATEWAY_NETWORK_REQUIRESSL: "false"
+      GATEWAY_NETWORK_SECURITYPOLICY: "Unrestricted"
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.ignition-hub.rule=Host(`${HUB_NAME:-ignition-hub}.localtest.me`)
+    command: >
+      -n ${HUB_NAME:-ignition-hub}
+      -h 80
+      -s 443
+      -a ${HUB_NAME:-ignition-hub}.localtest.me
+      --
+      -Dignition.projects.scanFrequency=10
+    profiles:
+      - hubspoke
+
+  # Spoke 1 gateway for hub-and-spoke architecture
+  spoke1:
+    <<: *ignition-common
+    container_name: ignition-spoke1
+    depends_on:
+      hub:
+        condition: service_healthy
+    environment:
+      TZ: ${TZ:-UTC}
+      ACCEPT_IGNITION_EULA: "Y"
+      # Set edition based on SPOKE_EDITION env var
+      IGNITION_EDITION: ${SPOKE_EDITION:-standard}
+      GATEWAY_MODULES_ENABLED: ${SPOKE_MODULES:-perspective,tag-historian,web-developer,opc-ua}
+      GATEWAY_ADMIN_USERNAME: ${GATEWAY_ADMIN_USERNAME:-admin}
+      GATEWAY_ADMIN_PASSWORD: ${GATEWAY_ADMIN_PASSWORD:-admin}
+      # Gateway Network configuration for hub
+      GATEWAY_NETWORK_0_HOST: ignition-hub
+      GATEWAY_NETWORK_0_PORT: 8088
+      GATEWAY_NETWORK_0_ENABLESSL: "false"
+      GATEWAY_NETWORK_0_DESCRIPTION: "Hub Connection"
+      GATEWAY_NETWORK_ALLOWINCOMING: "false"
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.ignition-spoke1.rule=Host(`${SPOKE1_NAME:-ignition-spoke1}.localtest.me`)
+    command: >
+      -n ${SPOKE1_NAME:-ignition-spoke1}
+      -h 80
+      -s 443
+      -a ${SPOKE1_NAME:-ignition-spoke1}.localtest.me
+      --
+      -Dignition.projects.scanFrequency=10
+    profiles:
+      - hubspoke
+
+  # Spoke 2 gateway for hub-and-spoke architecture
+  spoke2:
+    <<: *ignition-common
+    container_name: ignition-spoke2
+    depends_on:
+      hub:
+        condition: service_healthy
+    environment:
+      TZ: ${TZ:-UTC}
+      ACCEPT_IGNITION_EULA: "Y"
+      # Set edition based on SPOKE_EDITION env var
+      IGNITION_EDITION: ${SPOKE_EDITION:-standard}
+      GATEWAY_MODULES_ENABLED: ${SPOKE_MODULES:-perspective,tag-historian,web-developer,opc-ua}
+      GATEWAY_ADMIN_USERNAME: ${GATEWAY_ADMIN_USERNAME:-admin}
+      GATEWAY_ADMIN_PASSWORD: ${GATEWAY_ADMIN_PASSWORD:-admin}
+      # Gateway Network configuration for hub
+      GATEWAY_NETWORK_0_HOST: ignition-hub
+      GATEWAY_NETWORK_0_PORT: 8088
+      GATEWAY_NETWORK_0_ENABLESSL: "false"
+      GATEWAY_NETWORK_0_DESCRIPTION: "Hub Connection"
+      GATEWAY_NETWORK_ALLOWINCOMING: "false"
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.ignition-spoke2.rule=Host(`${SPOKE2_NAME:-ignition-spoke2}.localtest.me`)
+    command: >
+      -n ${SPOKE2_NAME:-ignition-spoke2}
+      -h 80
+      -s 443
+      -a ${SPOKE2_NAME:-ignition-spoke2}.localtest.me
+      --
+      -Dignition.projects.scanFrequency=10
+    profiles:
+      - hubspoke
+  
+  # Spoke 3 gateway for hub-and-spoke architecture
+  spoke3:
+    <<: *ignition-common
+    container_name: ignition-spoke3
+    depends_on:
+      hub:
+        condition: service_healthy
+    environment:
+      TZ: ${TZ:-UTC}
+      ACCEPT_IGNITION_EULA: "Y"
+      # Set edition based on SPOKE_EDITION env var
+      IGNITION_EDITION: ${SPOKE_EDITION:-standard}
+      GATEWAY_MODULES_ENABLED: ${SPOKE_MODULES:-perspective,tag-historian,web-developer,opc-ua}
+      GATEWAY_ADMIN_USERNAME: ${GATEWAY_ADMIN_USERNAME:-admin}
+      GATEWAY_ADMIN_PASSWORD: ${GATEWAY_ADMIN_PASSWORD:-admin}
+      # Gateway Network configuration for hub
+      GATEWAY_NETWORK_0_HOST: ignition-hub
+      GATEWAY_NETWORK_0_PORT: 8088
+      GATEWAY_NETWORK_0_ENABLESSL: "false"
+      GATEWAY_NETWORK_0_DESCRIPTION: "Hub Connection"
+      GATEWAY_NETWORK_ALLOWINCOMING: "false"
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.ignition-spoke3.rule=Host(`${SPOKE3_NAME:-ignition-spoke3}.localtest.me`)
+    command: >
+      -n ${SPOKE3_NAME:-ignition-spoke3}
+      -h 80
+      -s 443
+      -a ${SPOKE3_NAME:-ignition-spoke3}.localtest.me
+      --
+      -Dignition.projects.scanFrequency=10
+    profiles:
+      - hubspoke
+
+networks:
+  ignition_network:
+    driver: bridge
+  proxy:
+    external: true
+
+volumes:
+  db-data:
+  gateway-data:
+  frontend-data:
+  backend-data:
+  hub-data:
+  spoke1-data:
+  spoke2-data:
+  spoke3-data:
