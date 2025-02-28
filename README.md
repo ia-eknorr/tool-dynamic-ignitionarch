@@ -5,6 +5,7 @@ This repository contains a configurable Docker Compose setup for running Ignitio
 1. **Standard Gateway** - A standalone Ignition gateway with a PostgreSQL database
 2. **Scale-out Architecture** - Frontend and backend gateways with a shared database
 3. **Hub-and-Spoke Architecture** - A hub gateway with three spoke gateways (configurable as standard or edge edition)
+4. **IIoT Architecture** - A setup with a central Ignition gateway (Distributor + Engine modules) and edge gateways (Transmission module)
 
 ## Prerequisites
 
@@ -25,7 +26,15 @@ The repository is organized as follows:
 │   ├── ignition-hub.gwbk
 │   ├── ignition-spoke1.gwbk
 │   ├── ignition-spoke2.gwbk
-│   └── ignition-spoke3.gwbk
+│   ├── ignition-spoke3.gwbk
+│   ├── ignition-mqtt-central.gwbk
+│   ├── ignition-mqtt-edge1.gwbk
+│   └── ignition-mqtt-edge2.gwbk
+├── gw-modules/           # Cirrus Link MQTT modules
+│   ├── MQTT-Distributor-signed.modl
+│   ├── MQTT-Engine-signed.modl
+│   └── MQTT-Transmission-signed.modl
+
 ├── docker-compose.yml    # Main configuration file
 ├── run.sh                # Helper script for managing the setup
 └── .env                  # Environment variables (created from .env.example)
@@ -68,6 +77,14 @@ A helper script `run.sh` is provided to make it easier to manage the different c
 # Start hub-and-spoke with standard edition spokes
 ./run.sh hubspoke --standard
 
+# Start IIoT architecture
+./run.sh iiot
+
+### IIoT Architecture
+- MQTT Central Gateway: http://ignition-mqtt-central.localtest.me
+- MQTT Edge Gateway 1: http://ignition-mqtt-edge1.localtest.me
+- MQTT Edge Gateway 2: http://ignition-mqtt-edge2.localtest.me
+
 # Stop all containers
 ./run.sh down
 
@@ -103,19 +120,19 @@ All services are accessible via Traefik using the localtest.me domain (or your c
 
 ### Standard Gateway
 
-- Gateway: http://ignition-gateway.localtest.me
+- Gateway: <http://ignition-gateway.localtest.me>
 
 ### Scale-out Architecture
 
-- Frontend: http://ignition-frontend.localtest.me
-- Backend: http://ignition-backend.localtest.me
+- Frontend: <http://ignition-frontend.localtest.me>
+- Backend: <http://ignition-backend.localtest.me>
 
 ### Hub-and-Spoke Architecture
 
-- Hub: http://ignition-hub.localtest.me
-- Spoke 1: http://ignition-spoke1.localtest.me
-- Spoke 2: http://ignition-spoke2.localtest.me
-- Spoke 3: http://ignition-spoke3.localtest.me
+- Hub: <http://ignition-hub.localtest.me>
+- Spoke 1: <http://ignition-spoke1.localtest.me>
+- Spoke 2: <http://ignition-spoke2.localtest.me>
+- Spoke 3: <http://ignition-spoke3.localtest.me>
 
 ## Configuring Spoke Edition
 
