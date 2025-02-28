@@ -13,33 +13,6 @@ This repository contains a configurable Docker Compose setup for running Ignitio
 - Traefik reverse proxy running in your environment (with a network named 'proxy')
 - Basic knowledge of Ignition SCADA
 
-## Directory Structure
-
-The repository is organized as follows:
-
-```text
-├── db-init/              # Database initialization scripts (optional)
-├── gw-init/              # Gateway backup files (.gwbk) for automatic restoration
-│   ├── ignition-gateway.gwbk
-│   ├── ignition-frontend.gwbk
-│   ├── ignition-backend.gwbk
-│   ├── ignition-hub.gwbk
-│   ├── ignition-spoke1.gwbk
-│   ├── ignition-spoke2.gwbk
-│   ├── ignition-spoke3.gwbk
-│   ├── ignition-mqtt-central.gwbk
-│   ├── ignition-mqtt-edge1.gwbk
-│   └── ignition-mqtt-edge2.gwbk
-├── gw-modules/           # Cirrus Link MQTT modules
-│   ├── MQTT-Distributor-signed.modl
-│   ├── MQTT-Engine-signed.modl
-│   └── MQTT-Transmission-signed.modl
-
-├── docker-compose.yml    # Main configuration file
-├── run.sh                # Helper script for managing the setup
-└── .env                  # Environment variables (created from .env.example)
-```
-
 ## Configuration
 
 1. Copy the .env.example file to .env and modify as needed:
