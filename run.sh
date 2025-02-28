@@ -16,6 +16,7 @@ usage() {
     echo "  standard       Start standard gateway with database"
     echo "  scaleout       Start scale-out architecture (frontend/backend)"
     echo "  hubspoke       Start hub-and-spoke architecture"
+    echo "  iiot           Start IIoT architecture with MQTT modules"
     echo "  down           Stop and remove all containers"
     echo "  clean          Stop containers and remove volumes"
     echo
@@ -27,6 +28,7 @@ usage() {
     echo "  $0 standard            # Start standard gateway"
     echo "  $0 scaleout            # Start scale-out architecture"
     echo "  $0 hubspoke --edge     # Start hub-and-spoke with edge edition spokes"
+    echo "  $0 iiot                # Start IIoT architecture with MQTT modules"
     echo "  $0 down                # Stop all containers"
     echo
 }
@@ -43,15 +45,16 @@ mkdir -p db-init
 
 # Function to check which profile is active
 get_active_profile() {
-    local services
-    services=$(docker compose ps --services)
+    local services=$(docker compose ps --services)
     
-    if echo "$services" | grep -q "ignition-gateway"; then
+            if echo "$services" | grep -q "ignition-gateway"; then
         echo "standard"
     elif echo "$services" | grep -q "ignition-frontend" && echo "$services" | grep -q "ignition-backend"; then
         echo "scaleout"
     elif echo "$services" | grep -q "ignition-hub"; then
         echo "hubspoke"
+    elif echo "$services" | grep -q "ignition-mqtt-central"; then
+        echo "iiot"
     else
         echo ""
     fi
@@ -72,6 +75,15 @@ case "$1" in
         echo -e "${GREEN}Scale-out architecture started!${NC}"
         echo "Frontend: http://${FRONTEND_NAME:-ignition-frontend}.localtest.me"
         echo "Backend: http://${BACKEND_NAME:-ignition-backend}.localtest.me"
+        ;;
+    
+    iiot)
+        echo -e "${BLUE}Starting IIoT architecture with MQTT modules...${NC}"
+        docker compose --profile iiot up -d
+        echo -e "${GREEN}IIoT architecture started!${NC}"
+        echo "MQTT Central: http://${MQTT_CENTRAL_NAME:-ignition-mqtt-central}.localtest.me"
+        echo "MQTT Edge 1: http://${MQTT_EDGE1_NAME:-ignition-mqtt-edge1}.localtest.me"
+        echo "MQTT Edge 2: http://${MQTT_EDGE2_NAME:-ignition-mqtt-edge2}.localtest.me"
         ;;
     
     hubspoke)
@@ -102,7 +114,7 @@ case "$1" in
         
         if [ -n "$active_profile" ]; then
             echo -e "${BLUE}Detected active profile: ${active_profile}${NC}"
-            docker compose --profile "$active_profile" down
+            docker compose --profile $active_profile down
         else
             # Fallback to stopping all profiles if we can't determine the active one
             echo -e "${BLUE}Stopping all profiles...${NC}"
@@ -125,13 +137,14 @@ case "$1" in
             
             if [ -n "$active_profile" ]; then
                 echo -e "${BLUE}Cleaning up profile: ${active_profile}${NC}"
-                docker compose --profile "$active_profile" down -v
+                docker compose --profile $active_profile down -v
             else
                 # Clean all profiles
                 echo -e "${BLUE}Cleaning up all profiles...${NC}"
                 docker compose --profile standard down -v
                 docker compose --profile scaleout down -v
                 docker compose --profile hubspoke down -v
+                docker compose --profile iiot down -v
             fi
             
             echo -e "${GREEN}Cleanup complete.${NC}"

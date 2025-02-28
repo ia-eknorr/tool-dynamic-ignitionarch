@@ -16,8 +16,6 @@ x-standard-env: &standard-env
   GATEWAY_MODULES_ENABLED: ${STD_MODULES:-perspective,tag-historian,web-developer,opc-ua,reporting,alarm-notification,sql-bridge,vision,voice-notification}
   TZ: ${TZ:-UTC}
   ACCEPT_IGNITION_EULA: "Y"
-  GATEWAY_ADMIN_USERNAME: ${GATEWAY_ADMIN_USERNAME:-admin}
-  GATEWAY_ADMIN_PASSWORD: ${GATEWAY_ADMIN_PASSWORD:-admin}
 
 services:
   # Database service - shared across all configurations (PostgreSQL)
@@ -44,6 +42,7 @@ services:
       - standard
       - scaleout
       - hubspoke
+      - iiot
 
   # Standard standalone gateway configuration
   gateway:
@@ -146,8 +145,6 @@ services:
         condition: service_healthy
     environment:
       <<: *standard-env
-      # Override standard-env with spoke-specific settings
-      GATEWAY_MODULES_ENABLED: ${SPOKE_MODULES:-perspective,tag-historian,web-developer,opc-ua}
       # Gateway Network configuration for hub
       GATEWAY_NETWORK_0_HOST: ignition-hub
       GATEWAY_NETWORK_0_PORT: 8088
@@ -177,8 +174,6 @@ services:
         condition: service_healthy
     environment:
       <<: *standard-env
-      # Override standard-env with spoke-specific settings
-      GATEWAY_MODULES_ENABLED: ${SPOKE_MODULES:-perspective,tag-historian,web-developer,opc-ua}
       # Gateway Network configuration for hub
       GATEWAY_NETWORK_0_HOST: ignition-hub
       GATEWAY_NETWORK_0_PORT: 8088
@@ -208,8 +203,6 @@ services:
         condition: service_healthy
     environment:
       <<: *standard-env
-      # Override standard-env with spoke-specific settings
-      GATEWAY_MODULES_ENABLED: ${SPOKE_MODULES:-perspective,tag-historian,web-developer,opc-ua}
       # Gateway Network configuration for hub
       GATEWAY_NETWORK_0_HOST: ignition-hub
       GATEWAY_NETWORK_0_PORT: 8088
@@ -229,6 +222,75 @@ services:
       -Dignition.projects.scanFrequency=10
     profiles:
       - hubspoke
+
+  # Ignition MQTT Central Gateway (with Engine + Distributor modules)
+  mqtt-central:
+    <<: *ignition-common
+    container_name: ignition-mqtt-central
+    environment:
+      <<: *standard-env
+    volumes:
+      - ./gw-init:/restore
+      - ./gw-modules/MQTT-Distributor-signed.modl:/usr/local/bin/ignition/user-lib/modules/MQTT-Distributor-signed.modl
+      - ./gw-modules/MQTT-Engine-signed.modl:/usr/local/bin/ignition/user-lib/modules/MQTT-Engine-signed.modl
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.ignition-mqtt-central.rule=Host(`${MQTT_CENTRAL_NAME:-ignition-mqtt-central}.localtest.me`)
+    command: >
+      -n ${MQTT_CENTRAL_NAME:-ignition-mqtt-central}
+      -h 80
+      -s 443
+      -a ${MQTT_CENTRAL_NAME:-ignition-mqtt-central}.localtest.me
+      -r /restore/ignition-mqtt-central.gwbk
+      --
+      -Dignition.projects.scanFrequency=10
+    profiles:
+      - iiot
+
+  # Ignition MQTT Edge Gateways (with Transmission module)
+  mqtt-edge1:
+    <<: *ignition-common
+    container_name: ignition-mqtt-edge1
+    environment:
+      <<: *standard-env
+    volumes:
+      - ./gw-init:/restore
+      - ./gw-modules/MQTT-Transmission-signed.modl:/usr/local/bin/ignition/user-lib/modules/MQTT-Transmission-signed.modl
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.ignition-mqtt-edge1.rule=Host(`${MQTT_EDGE1_NAME:-ignition-mqtt-edge1}.localtest.me`)
+    command: >
+      -n ${MQTT_EDGE1_NAME:-ignition-mqtt-edge1}
+      -h 80
+      -s 443
+      -a ${MQTT_EDGE1_NAME:-ignition-mqtt-edge1}.localtest.me
+      -r /restore/ignition-mqtt-edge1.gwbk
+      --
+      -Dignition.projects.scanFrequency=10
+    profiles:
+      - iiot
+
+  mqtt-edge2:
+    <<: *ignition-common
+    container_name: ignition-mqtt-edge2
+    environment:
+      <<: *standard-env
+    volumes:
+      - ./gw-init:/restore
+      - ./gw-modules/MQTT-Transmission-signed.modl:/usr/local/bin/ignition/user-lib/modules/MQTT-Transmission-signed.modl
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.ignition-mqtt-edge2.rule=Host(`${MQTT_EDGE2_NAME:-ignition-mqtt-edge2}.localtest.me`)
+    command: >
+      -n ${MQTT_EDGE2_NAME:-ignition-mqtt-edge2}
+      -h 80
+      -s 443
+      -a ${MQTT_EDGE2_NAME:-ignition-mqtt-edge2}.localtest.me
+      -r /restore/ignition-mqtt-edge2.gwbk
+      --
+      -Dignition.projects.scanFrequency=10
+    profiles:
+      - iiot
 
 networks:
   ignition_network:
