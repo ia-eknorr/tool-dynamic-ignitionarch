@@ -18,7 +18,7 @@ usage() {
     echo "  hubspoke       Start hub-and-spoke architecture"
     echo "  iiot           Start IIoT architecture with MQTT modules"
     echo "  down           Stop and remove all containers"
-    echo "  clean          Stop containers and remove volumes"
+    echo "  clean          Stop containers, remove volumes and cleanup data"
     echo
     echo "Options:"
     echo "  --edge         Configure spokes as edge edition (for hubspoke only)"
@@ -28,8 +28,8 @@ usage() {
     echo "  $0 standard            # Start standard gateway"
     echo "  $0 scaleout            # Start scale-out architecture"
     echo "  $0 hubspoke --edge     # Start hub-and-spoke with edge edition spokes"
-    echo "  $0 iiot                # Start IIoT architecture with MQTT modules"
     echo "  $0 down                # Stop all containers"
+    echo "  $0 clean               # Remove all containers, volumes, and data"
     echo
 }
 
@@ -45,7 +45,8 @@ mkdir -p db-init
 
 # Function to check which profile is active
 get_active_profile() {
-    local services=$(docker compose ps --services)
+    local services
+    services=$(docker compose ps --services)
     
             if echo "$services" | grep -q "ignition-gateway"; then
         echo "standard"
@@ -126,7 +127,7 @@ case "$1" in
         ;;
     
     clean)
-        echo -e "${RED}Warning: This will remove all containers and volumes!${NC}"
+        echo -e "${RED}Warning: This will remove all containers, volumes, and persistent data!${NC}"
         read -p "Are you sure you want to continue? (y/N) " -n 1 -r
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
