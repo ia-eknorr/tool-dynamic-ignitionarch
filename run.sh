@@ -41,18 +41,34 @@ fi
 # Create necessary directories if they don't exist
 mkdir -p db-init
 
+# Function to check which profile is active
+get_active_profile() {
+    local services
+    services=$(docker compose ps --services)
+    
+    if echo "$services" | grep -q "ignition-gateway"; then
+        echo "standard"
+    elif echo "$services" | grep -q "ignition-frontend" && echo "$services" | grep -q "ignition-backend"; then
+        echo "scaleout"
+    elif echo "$services" | grep -q "ignition-hub"; then
+        echo "hubspoke"
+    else
+        echo ""
+    fi
+}
+
 # Process command
 case "$1" in
     standard)
         echo -e "${BLUE}Starting standard Ignition gateway...${NC}"
-        docker-compose --profile standard up -d
+        docker compose --profile standard up -d
         echo -e "${GREEN}Standard gateway started!${NC}"
         echo "Access at: http://${GATEWAY_NAME:-ignition-gateway}.localtest.me"
         ;;
     
     scaleout)
         echo -e "${BLUE}Starting scale-out architecture...${NC}"
-        docker-compose --profile scaleout up -d
+        docker compose --profile scaleout up -d
         echo -e "${GREEN}Scale-out architecture started!${NC}"
         echo "Frontend: http://${FRONTEND_NAME:-ignition-frontend}.localtest.me"
         echo "Backend: http://${BACKEND_NAME:-ignition-backend}.localtest.me"
@@ -71,7 +87,7 @@ case "$1" in
         fi
         
         echo -e "${BLUE}Starting hub-and-spoke architecture...${NC}"
-        docker-compose --profile hubspoke up -d
+        docker compose --profile hubspoke up -d
         echo -e "${GREEN}Hub-and-spoke architecture started!${NC}"
         echo "Hub: http://${HUB_NAME:-ignition-hub}.localtest.me"
         echo "Spoke 1: http://${SPOKE1_NAME:-ignition-spoke1}.localtest.me"
@@ -81,7 +97,19 @@ case "$1" in
     
     down)
         echo -e "${BLUE}Stopping all containers...${NC}"
-        docker-compose down
+        # Determine which profile is active and stop the specific profile
+        active_profile=$(get_active_profile)
+        
+        if [ -n "$active_profile" ]; then
+            echo -e "${BLUE}Detected active profile: ${active_profile}${NC}"
+            docker compose --profile "$active_profile" down
+        else
+            # Fallback to stopping all profiles if we can't determine the active one
+            echo -e "${BLUE}Stopping all profiles...${NC}"
+            docker compose --profile standard down
+            docker compose --profile scaleout down
+            docker compose --profile hubspoke down
+        fi
         echo -e "${GREEN}All containers stopped.${NC}"
         ;;
     
@@ -91,7 +119,21 @@ case "$1" in
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
             echo -e "${BLUE}Stopping containers and removing volumes...${NC}"
-            docker-compose down -v
+            
+            # Determine which profile is active
+            active_profile=$(get_active_profile)
+            
+            if [ -n "$active_profile" ]; then
+                echo -e "${BLUE}Cleaning up profile: ${active_profile}${NC}"
+                docker compose --profile "$active_profile" down -v
+            else
+                # Clean all profiles
+                echo -e "${BLUE}Cleaning up all profiles...${NC}"
+                docker compose --profile standard down -v
+                docker compose --profile scaleout down -v
+                docker compose --profile hubspoke down -v
+            fi
+            
             echo -e "${GREEN}Cleanup complete.${NC}"
         fi
         ;;
