@@ -9,94 +9,49 @@ This repository contains a configurable Docker Compose setup for running Ignitio
 ## Prerequisites
 
 - Docker and Docker Compose installed
-- Traefik reverse proxy running in your environment (with a network named 'traefik_network')
+- Traefik reverse proxy running in your environment (with a network named 'proxy')
 - Basic knowledge of Ignition SCADA
 
 ## Directory Structure
 
-Before running, create the following directory:
+The repository is organized as follows:
 
-```
+```text
 ├── db-init/              # Database initialization scripts (optional)
+├── gw-init/              # Gateway backup files (.gwbk) for automatic restoration
+│   ├── ignition-gateway.gwbk
+│   ├── ignition-frontend.gwbk
+│   ├── ignition-backend.gwbk
+│   ├── ignition-hub.gwbk
+│   ├── ignition-spoke1.gwbk
+│   ├── ignition-spoke2.gwbk
+│   └── ignition-spoke3.gwbk
+├── docker-compose.yml    # Main configuration file
+├── run.sh                # Helper script for managing the setup
+└── .env                  # Environment variables (created from .env.example)
 ```
 
 ## Configuration
 
 1. Copy the .env.example file to .env and modify as needed:
-   ```
+
+   ```bash
    cp .env.example .env
    ```
 
 2. Edit the .env file to configure your environment.
 
+## Gateway Backup Restoration
+
+This setup supports automatic restoration of gateway backups on startup:
+
+1. Place your Ignition gateway backup files (.gwbk) in the `gw-init/` directory
+2. Make sure the filenames match the gateway names as shown in the directory structure
+3. The system will automatically restore the backups when the containers start
+
 ## Running the Different Configurations
 
-### Standard Gateway
-
-```bash
-docker-compose --profile standard up -d
-```
-
-This will start:
-- A PostgreSQL database
-- A single Ignition gateway (standard edition)
-
-### Scale-out Architecture
-
-```bash
-docker-compose --profile scaleout up -d
-```
-
-This will start:
-- A PostgreSQL database
-- A frontend Ignition gateway 
-- A backend Ignition gateway
-
-### Hub-and-Spoke Architecture
-
-```bash
-docker-compose --profile hubspoke up -d
-```
-
-This will start:
-- A PostgreSQL database
-- A hub Ignition gateway
-- Three spoke Ignition gateways (configurable as standard or edge edition)
-
-## Service Access
-
-All services are accessible via Traefik using the localtest.me domain (or your custom domain if configured):
-
-### Standard Gateway
-- Gateway: http://ignition-gateway.localtest.me
-
-### Scale-out Architecture
-- Frontend: http://ignition-frontend.localtest.me
-- Backend: http://ignition-backend.localtest.me
-
-### Hub-and-Spoke Architecture
-- Hub: http://ignition-hub.localtest.me
-- Spoke 1: http://ignition-spoke1.localtest.me
-- Spoke 2: http://ignition-spoke2.localtest.me
-- Spoke 3: http://ignition-spoke3.localtest.me
-
-## Configuring Spoke Edition
-
-To set the spoke gateways to edge edition, update these variables in your .env file:
-
-```
-SPOKE_EDITION=edge
-SPOKE_MODULES=perspective,tag-historian,web-developer,opc-ua
-```
-
-To use standard edition spokes:
-
-```
-SPOKE_EDITION=standard
-SPOKE_MODULES=perspective,tag-historian,web-developer,opc-ua,reporting,alarm-notification,sql-bridge,vision,voice-notification
-```
-
-## Helper Script
+### Using the Helper Script
 
 A helper script `run.sh` is provided to make it easier to manage the different configurations:
 
@@ -120,6 +75,71 @@ A helper script `run.sh` is provided to make it easier to manage the different c
 ./run.sh clean
 ```
 
+### Manual Docker Compose Commands
+
+Alternatively, you can use Docker Compose directly:
+
+#### Standard Gateway
+
+```bash
+docker compose --profile standard up -d
+```
+
+#### Scale-out Architecture
+
+```bash
+docker compose --profile scaleout up -d
+```
+
+#### Hub-and-Spoke Architecture
+
+```bash
+docker compose --profile hubspoke up -d
+```
+
+## Service Access
+
+All services are accessible via Traefik using the localtest.me domain (or your custom domain if configured):
+
+### Standard Gateway
+
+- Gateway: http://ignition-gateway.localtest.me
+
+### Scale-out Architecture
+
+- Frontend: http://ignition-frontend.localtest.me
+- Backend: http://ignition-backend.localtest.me
+
+### Hub-and-Spoke Architecture
+
+- Hub: http://ignition-hub.localtest.me
+- Spoke 1: http://ignition-spoke1.localtest.me
+- Spoke 2: http://ignition-spoke2.localtest.me
+- Spoke 3: http://ignition-spoke3.localtest.me
+
+## Configuring Spoke Edition
+
+To set the spoke gateways to edge edition, update these variables in your .env file:
+
+```yaml
+SPOKE_EDITION=edge
+SPOKE_MODULES=perspective,tag-historian,web-developer,opc-ua
+```
+
+To use standard edition spokes:
+
+```yaml
+SPOKE_EDITION=standard
+SPOKE_MODULES=perspective,tag-historian,web-developer,opc-ua,reporting,alarm-notification,sql-bridge,vision,voice-notification
+```
+
+## Gateway Network Configuration
+
+This setup automatically configures Gateway Network connections:
+
+- In the scale-out architecture, the frontend connects to the backend
+- In the hub-and-spoke architecture, all spokes connect to the hub
+
 ## Additional Customization
 
 For more advanced customizations, you can create Docker Compose override files:
@@ -139,10 +159,3 @@ services:
     environment:
       CUSTOM_VAR: "custom-value"
 ```
-
-## Gateway Network Configuration
-
-This setup automatically configures Gateway Network connections:
-
-- In the scale-out architecture, the frontend connects to the backend
-- In the hub-and-spoke architecture, all spokes connect to the hub
