@@ -7,11 +7,17 @@ x-ignition-common: &ignition-common
   networks:
     - ignition_network
     - proxy
+  volumes:
+    - ./gw-init:/restore  # Mount the gw-init directory to /restore inside container
 
 # Common environment variables for standard edition
 x-standard-env: &standard-env
   IGNITION_EDITION: standard
   GATEWAY_MODULES_ENABLED: ${STD_MODULES:-perspective,tag-historian,web-developer,opc-ua,reporting,alarm-notification,sql-bridge,vision,voice-notification}
+  TZ: ${TZ:-UTC}
+  ACCEPT_IGNITION_EULA: "Y"
+  GATEWAY_ADMIN_USERNAME: ${GATEWAY_ADMIN_USERNAME:-admin}
+  GATEWAY_ADMIN_PASSWORD: ${GATEWAY_ADMIN_PASSWORD:-admin}
 
 services:
   # Database service - shared across all configurations (PostgreSQL)
@@ -45,10 +51,6 @@ services:
     container_name: ignition-gateway
     environment:
       <<: *standard-env
-      TZ: ${TZ:-UTC}
-      ACCEPT_IGNITION_EULA: "Y"
-      GATEWAY_ADMIN_USERNAME: ${GATEWAY_ADMIN_USERNAME:-admin}
-      GATEWAY_ADMIN_PASSWORD: ${GATEWAY_ADMIN_PASSWORD:-admin}
     labels:
       - traefik.enable=true
       - traefik.http.routers.ignition-gateway.rule=Host(`${GATEWAY_NAME:-ignition-gateway}.localtest.me`)
@@ -57,6 +59,7 @@ services:
       -h 80
       -s 443
       -a ${GATEWAY_NAME:-ignition-gateway}.localtest.me
+      -r /restore/ignition-gateway.gwbk
       --
       -Dignition.projects.scanFrequency=10
     profiles:
@@ -68,10 +71,6 @@ services:
     container_name: ignition-frontend
     environment:
       <<: *standard-env
-      TZ: ${TZ:-UTC}
-      ACCEPT_IGNITION_EULA: "Y"
-      GATEWAY_ADMIN_USERNAME: ${GATEWAY_ADMIN_USERNAME:-admin}
-      GATEWAY_ADMIN_PASSWORD: ${GATEWAY_ADMIN_PASSWORD:-admin}
       # Gateway Network configuration for backend
       GATEWAY_NETWORK_0_HOST: ignition-backend
       GATEWAY_NETWORK_0_PORT: 8088
@@ -86,6 +85,7 @@ services:
       -h 80
       -s 443
       -a ${FRONTEND_NAME:-ignition-frontend}.localtest.me
+      -r /restore/ignition-frontend.gwbk
       --
       -Dignition.projects.scanFrequency=10
     profiles:
@@ -97,10 +97,6 @@ services:
     container_name: ignition-backend
     environment:
       <<: *standard-env
-      TZ: ${TZ:-UTC}
-      ACCEPT_IGNITION_EULA: "Y"
-      GATEWAY_ADMIN_USERNAME: ${GATEWAY_ADMIN_USERNAME:-admin}
-      GATEWAY_ADMIN_PASSWORD: ${GATEWAY_ADMIN_PASSWORD:-admin}
       # Gateway Network Server configuration
       GATEWAY_NETWORK_REQUIRESSL: "false"
       GATEWAY_NETWORK_SECURITYPOLICY: "Unrestricted"
@@ -112,6 +108,7 @@ services:
       -h 80
       -s 443
       -a ${BACKEND_NAME:-ignition-backend}.localtest.me
+      -r /restore/ignition-backend.gwbk
       --
       -Dignition.projects.scanFrequency=10
     profiles:
@@ -123,10 +120,6 @@ services:
     container_name: ignition-hub
     environment:
       <<: *standard-env
-      TZ: ${TZ:-UTC}
-      ACCEPT_IGNITION_EULA: "Y"
-      GATEWAY_ADMIN_USERNAME: ${GATEWAY_ADMIN_USERNAME:-admin}
-      GATEWAY_ADMIN_PASSWORD: ${GATEWAY_ADMIN_PASSWORD:-admin}
       # Gateway Network Server configuration for spokes
       GATEWAY_NETWORK_REQUIRESSL: "false"
       GATEWAY_NETWORK_SECURITYPOLICY: "Unrestricted"
@@ -138,6 +131,7 @@ services:
       -h 80
       -s 443
       -a ${HUB_NAME:-ignition-hub}.localtest.me
+      -r /restore/ignition-hub.gwbk
       --
       -Dignition.projects.scanFrequency=10
     profiles:
@@ -151,13 +145,9 @@ services:
       hub:
         condition: service_healthy
     environment:
-      TZ: ${TZ:-UTC}
-      ACCEPT_IGNITION_EULA: "Y"
-      # Set edition based on SPOKE_EDITION env var
-      IGNITION_EDITION: ${SPOKE_EDITION:-standard}
+      <<: *standard-env
+      # Override standard-env with spoke-specific settings
       GATEWAY_MODULES_ENABLED: ${SPOKE_MODULES:-perspective,tag-historian,web-developer,opc-ua}
-      GATEWAY_ADMIN_USERNAME: ${GATEWAY_ADMIN_USERNAME:-admin}
-      GATEWAY_ADMIN_PASSWORD: ${GATEWAY_ADMIN_PASSWORD:-admin}
       # Gateway Network configuration for hub
       GATEWAY_NETWORK_0_HOST: ignition-hub
       GATEWAY_NETWORK_0_PORT: 8088
@@ -172,6 +162,7 @@ services:
       -h 80
       -s 443
       -a ${SPOKE1_NAME:-ignition-spoke1}.localtest.me
+      -r /restore/ignition-spoke1.gwbk
       --
       -Dignition.projects.scanFrequency=10
     profiles:
@@ -185,13 +176,9 @@ services:
       hub:
         condition: service_healthy
     environment:
-      TZ: ${TZ:-UTC}
-      ACCEPT_IGNITION_EULA: "Y"
-      # Set edition based on SPOKE_EDITION env var
-      IGNITION_EDITION: ${SPOKE_EDITION:-standard}
+      <<: *standard-env
+      # Override standard-env with spoke-specific settings
       GATEWAY_MODULES_ENABLED: ${SPOKE_MODULES:-perspective,tag-historian,web-developer,opc-ua}
-      GATEWAY_ADMIN_USERNAME: ${GATEWAY_ADMIN_USERNAME:-admin}
-      GATEWAY_ADMIN_PASSWORD: ${GATEWAY_ADMIN_PASSWORD:-admin}
       # Gateway Network configuration for hub
       GATEWAY_NETWORK_0_HOST: ignition-hub
       GATEWAY_NETWORK_0_PORT: 8088
@@ -206,6 +193,7 @@ services:
       -h 80
       -s 443
       -a ${SPOKE2_NAME:-ignition-spoke2}.localtest.me
+      -r /restore/ignition-spoke2.gwbk
       --
       -Dignition.projects.scanFrequency=10
     profiles:
@@ -219,13 +207,9 @@ services:
       hub:
         condition: service_healthy
     environment:
-      TZ: ${TZ:-UTC}
-      ACCEPT_IGNITION_EULA: "Y"
-      # Set edition based on SPOKE_EDITION env var
-      IGNITION_EDITION: ${SPOKE_EDITION:-standard}
+      <<: *standard-env
+      # Override standard-env with spoke-specific settings
       GATEWAY_MODULES_ENABLED: ${SPOKE_MODULES:-perspective,tag-historian,web-developer,opc-ua}
-      GATEWAY_ADMIN_USERNAME: ${GATEWAY_ADMIN_USERNAME:-admin}
-      GATEWAY_ADMIN_PASSWORD: ${GATEWAY_ADMIN_PASSWORD:-admin}
       # Gateway Network configuration for hub
       GATEWAY_NETWORK_0_HOST: ignition-hub
       GATEWAY_NETWORK_0_PORT: 8088
@@ -240,6 +224,7 @@ services:
       -h 80
       -s 443
       -a ${SPOKE3_NAME:-ignition-spoke3}.localtest.me
+      -r /restore/ignition-spoke3.gwbk
       --
       -Dignition.projects.scanFrequency=10
     profiles:
@@ -253,10 +238,3 @@ networks:
 
 volumes:
   db-data:
-  gateway-data:
-  frontend-data:
-  backend-data:
-  hub-data:
-  spoke1-data:
-  spoke2-data:
-  spoke3-data:
